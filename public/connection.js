@@ -20,7 +20,7 @@ function getMyStream(){
       }
     }).then( stream => {
       myStream = stream;
-      graphicsOnStream(myId, myStream);
+      graphicsOnStream(null, myStream);
       return myStream;
     });
   }
@@ -67,6 +67,7 @@ function listenForConnections(){
     graphicsOnConnection(conn);
     conn.on('close', removePeerFromRoom.bind(null, conn.peer));
     conn.on('data', graphicsOnData.bind(null, conn));
+    //graphicsOnRefresh
   });
 
   // on incoming streams from new members

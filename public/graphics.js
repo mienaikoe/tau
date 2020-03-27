@@ -3,8 +3,8 @@ var SPRITES = {};
 var GAINS = {};
 var FILTERS = {};
 var MY_PEER_ID = null;
-var ATTRACTOR = null;
 var MY_VELOCITY = [0,0];
+var MOUSE_DOWN = false;
 var FRICTION = 100; // velocity / s
 var LAST_TIME = null;
 var app;
@@ -23,14 +23,6 @@ function graphicsOnMe(peerId){
   MY_PEER_ID = peerId;
 }
 
-function graphicsAttractOn(data){
-  ATTRACTOR = [data.offsetX,data.offsetY];
-}
-
-function graphicsAttractOff(){
-  ATTRACTOR = null;
-}
-
 function graphicsOnRemove(peerId){
   delete CONNECTIONS[peerId];
 
@@ -41,11 +33,55 @@ function graphicsOnRemove(peerId){
   delete SPRITES[peerId];
 }
 
+function onMouseDown(){
+  MOUSE_DOWN = true;
+  var sprite = SPRITES[MY_PEER_ID];
+  sprite.scale.set(1.2, 1.2);
+}
+
+function onMouseMove(ev){
+  if( !MOUSE_DOWN ){
+    return;
+  }
+  var sprite = SPRITES[MY_PEER_ID];
+  sprite.x = ev.data.originalEvent.offsetX;
+  sprite.y = ev.data.originalEvent.offsetY;
+  for( peerId in CONNECTIONS ){
+    var connection = CONNECTIONS[peerId]
+    connection.send({
+      x: sprite.x,
+      y: sprite.y
+    });
+    var peerSprite = SPRITES[peerId];
+    if( peerSprite ){
+      redrawAudio(peerSprite, peerId);
+    }
+  }
+}
+
+function onMouseUp(){
+  MOUSE_DOWN = false;
+  var sprite = SPRITES[MY_PEER_ID];
+  sprite.scale.set(1, 1);
+}
+
 function graphicsOnStream(connection, stream){
   console.log("On Stream")
-  var peerId = connection.peer;
-  if( !peerId ){
+  var peerId;
+  if( connection ){
+    peerId = connection.peer
+    if( peerId === MY_PEER_ID ){
+      return;
+    }
+    if( peerId in SPRITES ){
+      return;
+    }
+  } else {
     peerId = MY_PEER_ID;
+  }
+
+  if( !peerId ){
+    return;
   }
 
   // hook up video sprite
@@ -58,17 +94,34 @@ function graphicsOnStream(connection, stream){
   var container = new PIXI.Container()
   container.pivot.x = window.VIDEO_RADIUS;
   container.pivot.y = window.VIDEO_RADIUS;
-  container.x = app.screen.width / 2;
-  container.y = app.screen.width / 2;
+  container.x = app.renderer.width / 2;
+  container.y = app.renderer.width / 2;
   container.width = window.VIDEO_WIDTH;
   container.height = window.VIDEO_DIAMETER;
+  if( peerId === MY_PEER_ID ){
+    container.interactive = true;
+    container.buttonMode = true;
+    container.on('mousedown', onMouseDown);
+    container.on('mousemove', onMouseMove);
+    // container.on('mouseout', onMouseUp);
+    container.on('mouseup', onMouseUp);
+
+    const bg = new PIXI.Graphics();
+    bg.beginFill(0x2288CC);
+    bg.drawCircle(
+      sprite.x + window.VIDEO_WIDTH / 2,
+      sprite.y + window.VIDEO_RADIUS,
+      window.VIDEO_RADIUS + 5);
+    bg.endFill();
+    container.addChild(bg);
+  }
   SPRITES[peerId] = container;
   app.stage.addChild(container);
 
   const graphics = new PIXI.Graphics();
-  graphics.beginFill(0x55555555);
+  graphics.beginFill(0x000000);
   graphics.drawCircle(
-    sprite.x + window.VIDEO_RADIUS,
+    sprite.x + window.VIDEO_WIDTH / 2,
     sprite.y + window.VIDEO_RADIUS,
     window.VIDEO_RADIUS);
   graphics.endFill();
@@ -96,6 +149,18 @@ function graphicsOnConnection(connection){
   CONNECTIONS[connection.peer] = connection;
 }
 
+function graphicsOnRefresh(peerId){
+  var connection = CONNECTIONS[peerId];
+  var mySprite = SPRITES[MY_PEER_ID];
+  if( mySprite ){
+    console.log("Sending Data");
+    connection.send({
+      x: mySprite.x,
+      y: mySprite.y
+    });
+  }
+}
+
 function graphicsOnData(connection, data){
   console.log("On Data");
   var peerId = connection.peer;
@@ -104,6 +169,29 @@ function graphicsOnData(connection, data){
     sprite.x = data.x;
     sprite.y = data.y;
     redrawAudio(sprite, peerId);
+  }
+}
+
+function redrawAudio(sprite, peerId){
+  if( !sprite ){
+    return;
+  }
+  var mySprite = SPRITES[MY_PEER_ID];
+  if( !mySprite ){
+    return;
+  }
+  var dx = mySprite.x - sprite.x;
+  var dy = mySprite.y - sprite.y;
+  var distance = Math.sqrt(
+    (dx * dx) + (dy * dy)
+  );
+  var gainNode = GAINS[peerId];
+  if( gainNode ){
+    gainNode.gain.value = Math.pow(Math.E, -0.01 * distance);
+  }
+  var filterNode = FILTERS[peerId];
+  if( filterNode ){
+    filterNode.frequency.value = 10000 * Math.pow(Math.E, -0.01 * distance);
   }
 }
 
@@ -116,87 +204,10 @@ function setup(){
   app.renderer.backgroundColor = 0xefefef;
   app.renderer.autoResize = true;
   app.renderer.resize(SCREEN_DIMENSIONS[0], SCREEN_DIMENSIONS[1]);
-  app.view.addEventListener('mousedown', graphicsAttractOn);
-  app.view.addEventListener('mouseup', graphicsAttractOff);
   document.body.appendChild(app.view);
-}
-
-
-function redrawAudio(sprite, peerId){
-  var mySprite = SPRITES[MY_PEER_ID];
-  var dx = mySprite.x - sprite.x;
-  var dy = mySprite.y - sprite.y;
-  var distance = Math.sqrt(
-    (dx * dx) + (dy * dy)
-  );
-  var gainNode = GAINS[peerId];
-  if( gainNode ){
-    gainNode.gain.value = Math.pow(Math.E, -0.005 * distance);
-  }
-  var filterNode = FILTERS[peerId];
-  if( filterNode ){
-    filterNode.frequency.value = 10000 * Math.pow(Math.E, -0.001 * distance);
-  }
-}
-
-function frame(time){
-  // calculate where I ought to be
-  var sprite = SPRITES[MY_PEER_ID]
-  if( sprite && LAST_TIME ){
-    var timeDiff = (time - LAST_TIME) / 1000;
-    oldPosition = [sprite.x, sprite.y]
-
-    var ax, ay;
-    if( ATTRACTOR ){
-      ax = (ATTRACTOR[0] - sprite.x) * 1.5;
-      ay = (ATTRACTOR[1] - sprite.y) * 1.5;
-    } else {
-      ax = -(FRICTION * Math.sign(MY_VELOCITY[0]));
-      ay = -(FRICTION * Math.sign(MY_VELOCITY[1]));
-    }
-    vx = MY_VELOCITY[0] + (ax * timeDiff);
-    vy = MY_VELOCITY[1] + (ay * timeDiff);
-    if(Math.abs(vx) < 0.2){
-      vx = 0;
-    }
-    if(Math.abs(vy) < 0.2){
-      vy = 0;
-    }
-    sprite.x = Math.max( window.VIDEO_RADIUS,
-      Math.min(
-        app.screen.width - window.VIDEO_RADIUS,
-        sprite.x + (vx * timeDiff)
-      )
-    );
-    sprite.y = Math.max( window.VIDEO_RADIUS,
-      Math.min(
-        app.screen.height - window.VIDEO_RADIUS,
-        sprite.y + (vy * timeDiff)
-      )
-    );
-    MY_VELOCITY = [vx, vy];
-
-    if( oldPosition[0] !== sprite.x || oldPosition[1] !== sprite.y ){
-      for( peerId in CONNECTIONS ){
-        var connection = CONNECTIONS[peerId]
-        connection.send({
-          x: sprite.x,
-          y: sprite.y
-        });
-        var peerSprite = SPRITES[peerId];
-        if( peerSprite ){
-          redrawAudio(peerSprite, peerId);
-        }
-      }
-    }
-  }
-
-  LAST_TIME = time;
-  requestAnimationFrame(frame);
 }
 
 function graphicsInitialize(){
   audioCtx = new AudioContext();
   setup();
-  frame();
 }
