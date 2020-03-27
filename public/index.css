@@ -1,0 +1,30 @@
+* {
+  padding: 0;
+  margin: 0;
+}
+
+canvas{
+  height: 600px;
+  width: 800px;
+  margin: 60px auto;
+  display: block;
+}
+
+.start{
+  position: absolute;
+  top: 360px;
+  left: 50%;
+  width: 120px;
+  height: 20px;
+  text-align: center;
+  padding: 20px;
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+  background-color: #48F;
+  margin-top: -28px;
+  margin-left: -60px;
+  z-index: 1;
+  font-family: courier;
+  cursor: pointer;
+}

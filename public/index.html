@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <div class='start' onclick="initialize()">Start</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/5.1.3/pixi.min.js"></script>
+    <script src="/bower_components/peerjs/peer.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/7.12.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.12.0/firebase-firestore.js"></script>
+
+    <script>
+      var firebaseConfig = {
+        apiKey: "AIzaSyDsIIZqL2tajmluGaYfKDFSUi_ywHLDXR4",
+        authDomain: "tau-6a369.firebaseapp.com",
+        databaseURL: "https://tau-6a369.firebaseio.com",
+        projectId: "tau-6a369",
+        storageBucket: "tau-6a369.appspot.com",
+        messagingSenderId: "368075892066",
+        appId: "1:368075892066:web:6a97897dffd89132e0f83b"
+      };
+      firebase.initializeApp(firebaseConfig);
+    </script>
+    <script src="/graphics.js"></script>
+    <script src="/connection.js"></script>
+    <script src="/index.js" ></script>
+  </body>
+</html>
+
