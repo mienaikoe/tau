@@ -17,22 +17,28 @@ window.VIDEO_WIDTH = window.VIDEO_DIAMETER * (4/3);
 
 SCREEN_DIMENSIONS = [1200, 800];
 
-var colorArray = ['#FF6633', '#FFB399', '#FF33FF', '#FFFF99', '#00B3E6',
-		  '#E6B333', '#3366E6', '#999966', '#99FF99', '#B34D4D',
-		  '#80B300', '#809900', '#E6B3B3', '#6680B3', '#66991A',
-		  '#FF99E6', '#CCFF1A', '#FF1A66', '#E6331A', '#33FFCC',
-		  '#66994D', '#B366CC', '#4D8000', '#B33300', '#CC80CC',
-		  '#66664D', '#991AFF', '#E666FF', '#4DB3FF', '#1AB399',
-		  '#E666B3', '#33991A', '#CC9999', '#B3B31A', '#00E680',
-		  '#4D8066', '#809980', '#E6FF80', '#1AFF33', '#999933',
-		  '#FF3380', '#CCCC00', '#66E64D', '#4D80CC', '#9900B3',
-		  '#E64D66', '#4DB380', '#FF4D4D', '#99E6E6', '#6666FF'];
+var colorArray = [
+  0xFF6633, 0xFFB399, 0xFF33FF, 0xFFFF99, 0x00B3E6,
+  0xE6B333, 0x3366E6, 0x999966, 0x99FF99, 0xB34D4D,
+  0x80B300, 0x809900, 0xE6B3B3, 0x6680B3, 0x66991A,
+  0xFF99E6, 0xCCFF1A, 0xFF1A66, 0xE6331A, 0x33FFCC,
+  0x66994D, 0xB366CC, 0x4D8000, 0xB33300, 0xCC80CC,
+  0x66664D, 0x991AFF, 0xE666FF, 0x4DB3FF, 0x1AB399,
+  0xE666B3, 0x33991A, 0xCC9999, 0xB3B31A, 0x00E680,
+  0x4D8066, 0x809980, 0xE6FF80, 0x1AFF33, 0x999933,
+  0xFF3380, 0xCCCC00, 0x66E64D, 0x4D80CC, 0x9900B3,
+  0xE64D66, 0x4DB380, 0xFF4D4D, 0x99E6E6, 0x6666FF
+];
 
 
 function graphicsOnMe(peerId){
   console.log('My peer ID is: ' + peerId);
   MY_PEER_ID = peerId;
-  graphicsCreateConnectionContainer(peerId);
+  graphicsCreateConnectionContainer(
+    peerId,
+    app.renderer.width / 2,
+    app.renderer.height / 2,
+  );
 }
 
 function graphicsOnRemove(peerId){
@@ -150,12 +156,12 @@ function graphicsCreateStreamSprite(peerId, stream){
   }
 }
 
-function graphicsCreateConnectionContainer(peerId){
+function graphicsCreateConnectionContainer(peerId, x, y){
   var container = new PIXI.Container()
   container.pivot.x = window.VIDEO_RADIUS;
   container.pivot.y = window.VIDEO_RADIUS;
-  container.x = app.renderer.width / 2;
-  container.y = app.renderer.width / 2;
+  container.x = x
+  container.y = y
   container.width = window.VIDEO_WIDTH;
   container.height = window.VIDEO_DIAMETER;
   if( peerId === MY_PEER_ID ){
@@ -169,17 +175,18 @@ function graphicsCreateConnectionContainer(peerId){
     const bg = new PIXI.Graphics();
     bg.beginFill(0x2288CC);
     bg.drawCircle(
-      container.x + window.VIDEO_WIDTH / 2,
-      container.y + window.VIDEO_RADIUS,
-      window.VIDEO_RADIUS + 5);
+      window.VIDEO_WIDTH / 2,
+      window.VIDEO_RADIUS,
+      window.VIDEO_RADIUS + 5
+    );
     bg.endFill();
     container.addChild(bg);
   } else {
     const bg = new PIXI.Graphics();
     bg.beginFill(colorArray[Math.floor(Math.random() * colorArray.length)]);
     bg.drawCircle(
-      container.x + window.VIDEO_WIDTH / 2,
-      container.y + window.VIDEO_RADIUS,
+      window.VIDEO_WIDTH / 2,
+      window.VIDEO_RADIUS,
       window.VIDEO_RADIUS
     );
     bg.endFill();
@@ -193,7 +200,11 @@ function graphicsOnConnection(connection){
   console.log("On Connection");
   const peerId = connection.peer;
   CONNECTIONS[peerId] = connection;
-  graphicsCreateConnectionContainer(peerId);
+  graphicsCreateConnectionContainer(
+    peerId,
+    app.renderer.width / 2,
+    app.renderer.height / 2,
+  );
 }
 
 function graphicsOnRefresh(peerId){

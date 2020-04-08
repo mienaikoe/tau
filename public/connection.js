@@ -81,7 +81,7 @@ function listenForConnections(){
     graphicsOnConnection(conn);
     conn.on('close', removePeerFromRoom.bind(null, conn.peer));
     conn.on('data', graphicsOnData.bind(null, conn));
-    //graphicsOnRefresh
+    graphicsOnRefresh();
   });
 
   // on incoming streams from new members
