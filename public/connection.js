@@ -12,10 +12,12 @@ function getMyStream(){
       audio: true,
       video: {
         width: {
-          max: window.VIDEO_WIDTH
+          max: window.VIDEO_WIDTH,
+          ideal: window.VIDEO_WIDTH,
         },
         height: {
-          max: window.VIDEO_DIAMETER,
+          max: window.VIDEO_WIDTH,
+          ideal: window.VIDEO_DIAMETER,
         }
       }
     }).then( stream => {
@@ -34,25 +36,37 @@ function removePeerFromRoom(peerId){
   graphicsOnRemove(peerId);
 }
 
+function streamToOthers(members){
+  if( members.length){
+    getMyStream().then(function (mediaStream) {
+      members.forEach(memberId => {
+        if( memberId === myId ){
+          return;
+        }
+        var call = peer.call(memberId, mediaStream);
+        call.on('stream', graphicsOnStream.bind(null, call));
+      });
+    })
+  }
+}
+
 /**
  * Call other members to establish connections with them
  * @param {Array[String]} members
  */
 function connectToOthers(members){
   if( members.length){
-    getMyStream().then(function (mediaStream) {
-      members.forEach(memberId => {
-        var call = peer.call(memberId, mediaStream);
-        call.on('stream', graphicsOnStream.bind(null, call));
-
-        var conn = peer.connect(memberId);
-        graphicsOnConnection(conn);
-        conn.on('open', function(){
-          conn.on('data', graphicsOnData.bind(null, conn));
-        });
-        conn.on('close', removePeerFromRoom.bind(null, conn.peer));
+    members.forEach(memberId => {
+      if( memberId == myId ){
+        return;
+      }
+      var conn = peer.connect(memberId);
+      graphicsOnConnection(conn);
+      conn.on('open', function(){
+        conn.on('data', graphicsOnData.bind(null, conn));
       });
-    })
+      conn.on('close', removePeerFromRoom.bind(null, conn.peer));
+    });
   } else {
     console.log("No Members in room");
   }
@@ -89,6 +103,9 @@ function listenForConnections(){
 function joinRoom(roomData){
   listenForConnections();
   connectToOthers(roomData.members);
+  getMyStream().then(function (mediaStream) {
+    graphicsOnStream(null, mediaStream);
+  });
 }
 
 function connectionInitialize(){

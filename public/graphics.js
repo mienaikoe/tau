@@ -1,4 +1,5 @@
 var CONNECTIONS = {};
+var STREAMS = {};
 var SPRITES = {};
 var GAINS = {};
 var FILTERS = {};
@@ -10,27 +11,42 @@ var LAST_TIME = null;
 var app;
 var audioCtx;
 
-window.VIDEO_DIAMETER = 64;
+window.VIDEO_DIAMETER = 72;
 window.VIDEO_RADIUS = window.VIDEO_DIAMETER / 2;
 window.VIDEO_WIDTH = window.VIDEO_DIAMETER * (4/3);
 
-SCREEN_DIMENSIONS = [800, 600];
+SCREEN_DIMENSIONS = [1200, 800];
 
+var colorArray = ['#FF6633', '#FFB399', '#FF33FF', '#FFFF99', '#00B3E6',
+		  '#E6B333', '#3366E6', '#999966', '#99FF99', '#B34D4D',
+		  '#80B300', '#809900', '#E6B3B3', '#6680B3', '#66991A',
+		  '#FF99E6', '#CCFF1A', '#FF1A66', '#E6331A', '#33FFCC',
+		  '#66994D', '#B366CC', '#4D8000', '#B33300', '#CC80CC',
+		  '#66664D', '#991AFF', '#E666FF', '#4DB3FF', '#1AB399',
+		  '#E666B3', '#33991A', '#CC9999', '#B3B31A', '#00E680',
+		  '#4D8066', '#809980', '#E6FF80', '#1AFF33', '#999933',
+		  '#FF3380', '#CCCC00', '#66E64D', '#4D80CC', '#9900B3',
+		  '#E64D66', '#4DB380', '#FF4D4D', '#99E6E6', '#6666FF'];
 
 
 function graphicsOnMe(peerId){
   console.log('My peer ID is: ' + peerId);
   MY_PEER_ID = peerId;
+  graphicsCreateConnectionContainer(peerId);
 }
 
 function graphicsOnRemove(peerId){
   delete CONNECTIONS[peerId];
 
-  GAINS[peerId].disconnect();
-  delete GAINS[peerId];
+  if( peerId in GAINS ){
+    GAINS[peerId].disconnect();
+    delete GAINS[peerId];
+  }
 
-  app.stage.removeChild(SPRITES[peerId]);
-  delete SPRITES[peerId];
+  if( peerId in SPRITES ){
+    app.stage.removeChild(SPRITES[peerId]);
+    delete SPRITES[peerId];
+  }
 }
 
 function onMouseDown(){
@@ -46,16 +62,10 @@ function onMouseMove(ev){
   var sprite = SPRITES[MY_PEER_ID];
   sprite.x = ev.data.originalEvent.offsetX;
   sprite.y = ev.data.originalEvent.offsetY;
-  for( peerId in CONNECTIONS ){
-    var connection = CONNECTIONS[peerId]
-    connection.send({
-      x: sprite.x,
-      y: sprite.y
-    });
+
+  for( peerId in SPRITES ){
     var peerSprite = SPRITES[peerId];
-    if( peerSprite ){
-      redrawAudio(peerSprite, peerId);
-    }
+    redrawAudio(peerSprite, peerId);
   }
 }
 
@@ -63,19 +73,30 @@ function onMouseUp(){
   MOUSE_DOWN = false;
   var sprite = SPRITES[MY_PEER_ID];
   sprite.scale.set(1, 1);
+
+  for( peerId in CONNECTIONS ){
+    var connection = CONNECTIONS[peerId]
+    connection.send({
+      x: sprite.x,
+      y: sprite.y
+    });
+  }
+
+  redrawStreams();
 }
 
-function graphicsOnStream(connection, stream){
+function graphicsOnStream(mediaConnection, stream){
   console.log("On Stream")
   var peerId;
-  if( connection ){
-    peerId = connection.peer
+  if( mediaConnection ){
+    peerId = mediaConnection.peer
     if( peerId === MY_PEER_ID ){
       return;
     }
-    if( peerId in SPRITES ){
+    if( peerId in STREAMS ){
       return;
     }
+    STREAMS[peerId] = mediaConnection;
   } else {
     peerId = MY_PEER_ID;
   }
@@ -84,6 +105,12 @@ function graphicsOnStream(connection, stream){
     return;
   }
 
+  graphicsCreateStreamSprite(peerId, stream);
+}
+
+
+function graphicsCreateStreamSprite(peerId, stream){
+  console.log("Creating Stream Sprite");
   // hook up video sprite
   var video = document.createElement("video");
   video.srcObject = stream;
@@ -91,6 +118,39 @@ function graphicsOnStream(connection, stream){
   videoTexture = PIXI.Texture.fromVideo(video);
   var sprite = new PIXI.Sprite(videoTexture);
 
+  const graphics = new PIXI.Graphics();
+  graphics.beginFill(0x000000);
+  graphics.drawCircle(
+    sprite.x + window.VIDEO_WIDTH / 2,
+    sprite.y + window.VIDEO_RADIUS,
+    window.VIDEO_RADIUS);
+  graphics.endFill();
+  sprite.mask = graphics;
+
+  const container = SPRITES[peerId];
+  if( container ){
+    container.addChild(sprite);
+    container.addChild(graphics);
+  } else {
+    console.warn("container not found for peerId " + peerId);
+  }
+
+  // hook up audio
+  if( peerId !== MY_PEER_ID ){
+    var sourceNode = audioCtx.createMediaStreamSource(stream)
+    var gainNode = audioCtx.createGain();
+    var filterNode = audioCtx.createBiquadFilter();
+    filterNode.type = 'lowpass';
+    GAINS[peerId] = gainNode;
+    FILTERS[peerId] = filterNode;
+    redrawAudio(sprite, peerId);
+    sourceNode.connect(gainNode);
+    gainNode.connect(filterNode);
+    filterNode.connect(audioCtx.destination);
+  }
+}
+
+function graphicsCreateConnectionContainer(peerId){
   var container = new PIXI.Container()
   container.pivot.x = window.VIDEO_RADIUS;
   container.pivot.y = window.VIDEO_RADIUS;
@@ -109,44 +169,31 @@ function graphicsOnStream(connection, stream){
     const bg = new PIXI.Graphics();
     bg.beginFill(0x2288CC);
     bg.drawCircle(
-      sprite.x + window.VIDEO_WIDTH / 2,
-      sprite.y + window.VIDEO_RADIUS,
+      container.x + window.VIDEO_WIDTH / 2,
+      container.y + window.VIDEO_RADIUS,
       window.VIDEO_RADIUS + 5);
+    bg.endFill();
+    container.addChild(bg);
+  } else {
+    const bg = new PIXI.Graphics();
+    bg.beginFill(colorArray[Math.floor(Math.random() * colorArray.length)]);
+    bg.drawCircle(
+      container.x + window.VIDEO_WIDTH / 2,
+      container.y + window.VIDEO_RADIUS,
+      window.VIDEO_RADIUS
+    );
     bg.endFill();
     container.addChild(bg);
   }
   SPRITES[peerId] = container;
   app.stage.addChild(container);
-
-  const graphics = new PIXI.Graphics();
-  graphics.beginFill(0x000000);
-  graphics.drawCircle(
-    sprite.x + window.VIDEO_WIDTH / 2,
-    sprite.y + window.VIDEO_RADIUS,
-    window.VIDEO_RADIUS);
-  graphics.endFill();
-  sprite.mask = graphics;
-  container.addChild(sprite);
-  container.addChild(graphics);
-
-  // hook up audio
-  if( peerId !== MY_PEER_ID ){
-    var sourceNode = audioCtx.createMediaStreamSource(stream)
-    var gainNode = audioCtx.createGain();
-    var filterNode = audioCtx.createBiquadFilter();
-    filterNode.type = 'lowpass';
-    GAINS[peerId] = gainNode;
-    FILTERS[peerId] = filterNode;
-    redrawAudio(sprite, peerId);
-    sourceNode.connect(gainNode);
-    gainNode.connect(filterNode);
-    filterNode.connect(audioCtx.destination);
-  }
 }
 
 function graphicsOnConnection(connection){
   console.log("On Connection");
-  CONNECTIONS[connection.peer] = connection;
+  const peerId = connection.peer;
+  CONNECTIONS[peerId] = connection;
+  graphicsCreateConnectionContainer(peerId);
 }
 
 function graphicsOnRefresh(peerId){
@@ -159,6 +206,10 @@ function graphicsOnRefresh(peerId){
       y: mySprite.y
     });
   }
+}
+
+function graphicsOnStreamDisconnect(connection){
+  // TODO
 }
 
 function graphicsOnData(connection, data){
@@ -192,6 +243,42 @@ function redrawAudio(sprite, peerId){
   var filterNode = FILTERS[peerId];
   if( filterNode ){
     filterNode.frequency.value = 10000 * Math.pow(Math.E, -0.01 * distance);
+  }
+}
+
+function redrawStreams(){
+  const peersToConnectTo = [];
+
+  var mySprite = SPRITES[MY_PEER_ID];
+  if( !mySprite ){
+    return;
+  }
+
+  for( peerId in SPRITES ){
+    if( peerId === MY_PEER_ID ){
+      continue;
+    }
+    sprite = SPRITES[peerId];
+
+    var dx = mySprite.x - sprite.x;
+    var dy = mySprite.y - sprite.y;
+    var distance = Math.sqrt(
+      (dx * dx) + (dy * dy)
+    );
+
+    if( distance > 200 ){
+      if( peerId in STREAMS ){
+        STREAMS[peerId].close()
+        delete STREAMS[peerId];
+      }
+    } else if( Object.keys(STREAMS).length < 12 ){
+      if( !(peerId in STREAMS) ){
+        peersToConnectTo.push(peerId);
+      }
+    }
+  }
+  if( peersToConnectTo.length > 0 ){
+    streamToOthers(peersToConnectTo);
   }
 }
 
